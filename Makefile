@@ -82,6 +82,7 @@ Src/dma2d.c \
 Src/i2s.c \
 Src/dma.c \
 Src/ssd1289.c \
+Src/audio.c \
 Src/main.c
 
 

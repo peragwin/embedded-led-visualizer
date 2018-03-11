@@ -45,19 +45,14 @@
 #include "i2s.h"
 #include "dma.h"
 #include "ssd1289.h"
+#include "audio.h"
 #include <arm_math.h>
 
 #define BUFFER_SIZE 76800
-#define AUDIO_BUFFER_SIZE 512
 #define MIN(a,b)    (((a) < (b)) ? (a) : (b))
 
 static void CPU_CACHE_Enable(void);
 void SystemClock_Config(void);
-
-void AUDIO_Init(void);
-int16_t* AUDIO_GetCurrentBuffer(void);
-static void AudioTransferComplete(DMA_HandleTypeDef *hdma);
-static void AudioTransferError(DMA_HandleTypeDef *hdma);
 
 // void DMA2D_WriteBuffer(uint16_t x, uint16_t y, uint16_t w, uint16_t h, color_t color);
 // static void DMA2D_TransferComplete(DMA2D_HandleTypeDef *hdma2d);
@@ -72,8 +67,6 @@ static void TransferComplete(DMA2D_HandleTypeDef *hdma2d);
 static void TransferError(DMA2D_HandleTypeDef *hdma2d);
 
 color_t buffer[BUFFER_SIZE] = {};
-
-int16_t audio_buffer[2 * AUDIO_BUFFER_SIZE] = {0};
 
 int main(void)
 {
@@ -92,14 +85,12 @@ int main(void)
   MX_FMC_Init();
   MX_TIM2_Init();
   MX_I2S1_Init();
-  hdma_spi1_rx.XferCpltCallback = AudioTransferComplete;
-  hdma_spi1_rx.XferErrorCallback = AudioTransferError;
 
   MX_DMA2D_Init();
   hdma2d.XferCpltCallback = TransferComplete;
   hdma2d.XferErrorCallback = TransferError;
 
-  AUDIO_Init();
+  Audio_Init();
 
   LCD_Init();
 
@@ -236,27 +227,24 @@ void LCD_ColorDemo(void) {
 
     if (hi2s1.Instance->SR & 0x100) {
       __HAL_I2S_DISABLE(&hi2s1);
-      //HAL_DMA_Abort(&hdma_spi1_rx);
-
-
       LED_Set(LED_RED, 1);
+
       HAL_Delay(1);
-      //hi2s1.State = HAL_I2S_STATE_READY;
-      __HAL_I2S_ENABLE(&hi2s1);
-      
+
+      __HAL_I2S_ENABLE(&hi2s1);      
       LED_Set(LED_RED, 0);
     }
-    // HAL_DMA_Abort_IT(&hdma_spi1_rx);
-    // hi2s1.State = HAL_I2S_STATE_READY;
+
     c.g = 0xfc;
-    //int16_t *audio = AUDIO_GetCurrentBuffer();
+    color_t c2 = {255, 0, 0};
+    int16_t *audio = Audio_GetBuffer(0);
     for (int x = 0; x < 320; x++) {
       int idx = 2*x;
-      int y = 96 + (audio_buffer[idx] / 512);
-      if (y < 0) y = 0;
-      LCD_SetBuffer(buffer, x, y, c);
+      int y1 = 96 + (audio[idx] / 512);
+      int y2 = 96 + (audio[idx+1] / 512);
+      LCD_SetBuffer(buffer, x, y1, c);
+      LCD_SetBuffer(buffer, x, y2, c2);
     }
-    
     
     LCD_Buffer_DMA2D();
   }
@@ -292,95 +280,6 @@ static void TransferComplete(DMA2D_HandleTypeDef *hdma2d) {
 
 static void TransferError(DMA2D_HandleTypeDef *hdma2d) {
   LED_Set(LED_RED, 1);
-}
-
-void AUDIO_Init(void) {
-  I2S_HandleTypeDef *hi2s = &hi2s1;
-  uint32_t buffer_0 = (uint32_t)audio_buffer;
-  uint32_t buffer_1 = (uint32_t)(audio_buffer + AUDIO_BUFFER_SIZE);
-    
-  if(hi2s->State == HAL_I2S_STATE_READY)
-  {    
-    if(((hi2s->Instance->I2SCFGR & (SPI_I2SCFGR_DATLEN | SPI_I2SCFGR_CHLEN)) == I2S_DATAFORMAT_24B)||\
-      ((hi2s->Instance->I2SCFGR & (SPI_I2SCFGR_DATLEN | SPI_I2SCFGR_CHLEN)) == I2S_DATAFORMAT_32B))
-    {
-      hi2s->RxXferSize = (AUDIO_BUFFER_SIZE << 1);
-      hi2s->RxXferCount = (AUDIO_BUFFER_SIZE << 1);
-    }  
-    else
-    {
-      hi2s->RxXferSize = AUDIO_BUFFER_SIZE;
-      hi2s->RxXferCount = AUDIO_BUFFER_SIZE;
-    }
-    /* Process Locked */
-    __HAL_LOCK(hi2s);
-    
-    hi2s->ErrorCode = HAL_I2S_ERROR_NONE;
-    hi2s->State = HAL_I2S_STATE_BUSY_RX;
-   
-    /* Enable the Rx DMA Channel */      
-    if (HAL_DMAEx_MultiBufferStart(&hdma_spi1_rx,
-      (uint32_t)&hi2s->Instance->DR, buffer_0, buffer_1, hi2s->RxXferSize) != HAL_OK)
-      Error_Handler();
-    
-    /* Check if the I2S is already enabled */ 
-    if((hi2s->Instance->I2SCFGR &SPI_I2SCFGR_I2SE) != SPI_I2SCFGR_I2SE)
-    {
-      /* Enable I2S peripheral */    
-      __HAL_I2S_ENABLE(hi2s);
-    }
-    
-    /* Enable Rx DMA Request */  
-    hi2s->Instance->CR2 |= SPI_CR2_RXDMAEN;
-    
-    /* Process Unlocked */
-    __HAL_UNLOCK(hi2s);
-  }
-  else
-  {
-    Error_Handler();
-  }
-}
-
-// void DMA2D_WriteBuffer(uint16_t x, uint16_t y, uint16_t w, uint16_t h, color_t color) {
-//   while(dma2d_in_progress) HAL_Delay(1);
-//   dma2d_in_progress = 1;
-
-//   uint32_t *start = (uint32_t*)buffer + (320*y+x)/2;
-//   if ((int)start % 4 != 0) Error_Handler();
-//   uint32_t c = *((uint32_t*)&color);
-
-//   if (HAL_DMA2D_Start_IT(&hdma2d, c, (uint32_t) start, w, h) != HAL_OK)
-//     Error_Handler();
-// }
-
-// static void DMA2D_TransferComplete(DMA2D_HandleTypeDef *hdma2d) {
-//   static int toggle;
-  
-//   dma2d_in_progress = 0;
-//   toggle ^= 1;
-//   LED_Set(LED_RED, toggle);
-// }
-
-// static void DMA2D_TransferError(DMA2D_HandleTypeDef *hdma2d) {
-//   LED_Set(LED_RED, 1);
-// }
-
-int audio_buffer_toggle;
-
-// AudioTransferComplete moves the pointer for the memory block which just finished transfering
-// to the next location.
-void AudioTransferComplete(DMA_HandleTypeDef *hdma)
-{  
- // LED_Set(LED_RED, audio_buffer_toggle ^= 1);
-}
-
-void AudioTransferError(DMA_HandleTypeDef *hdma) {
-  Error_Handler();
-}
-
-int16_t* AUDIO_GetCurrentBuffer(void) {
-  return audio_buffer_toggle ? audio_buffer : (audio_buffer + AUDIO_BUFFER_SIZE);
 }
 
 static void CPU_CACHE_Enable(void)
