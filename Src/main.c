@@ -171,6 +171,9 @@ color_t sim565(color_t c) {
   return c;
 }
 
+int bucket_enabled = 1;
+int wave_enabled = 0;
+
 void LCD_ColorDemo(void) {
   float r, g, b = 0;
   float incr = 1.44;
@@ -193,7 +196,11 @@ void LCD_ColorDemo(void) {
   }
 
   int j = 0;
-  color_t c;
+  color_t green = {0, 0xfc, 0};
+  color_t red = {0xff, 0, 0};
+  color_t blue = {0,0, 0xff};
+  color_t black = {0, 0, 0};
+  float32_t scale = 1;
   while (1) {
     j++;
 
@@ -218,32 +225,48 @@ void LCD_ColorDemo(void) {
     //     LCD_SetBuffer(buffer, x, y, fixBits(c));
     //   }
     // }
-    color_t c = {0,0,0};
-    for (int y = 32; y < 32+128; y++) {
-      for (int x = 0; x < 320; x++) {
-        LCD_SetBuffer(buffer, x, y, c);
+    // color_t c = {0,0,0};
+    // for (int y = 32; y < 32+128; y++) {
+    //   for (int x = 0; x < 320; x++) {
+    //     LCD_SetBuffer(buffer, x, y, c);
+    //   }
+    // }
+
+    Audio_ensure_i2s_frame_sync();
+
+    // c.g = 0xfc;
+    // color_t c2 = {255, 0, 0};
+
+    if (bucket_enabled) {
+    float32_t *buckets = Audio_GetProcessedOutput();
+    float32_t max;
+    arm_max_f32(buckets, NUM_BUCKETS, &max, NULL);
+    scale = .95 * scale + .05 * max;
+    for (int i = 0; i < 32; i++) {
+      int v = 100.0 * buckets[i] / scale;
+      v = v > 120.0 ? 120.0 : v;
+      v = 180 - v;
+      for (int y = 60; y < 180; y++) {
+        for (int x = 10*i; x < 10*(i+1); x++) {
+          if (y < v) {
+            LCD_SetBuffer(buffer, x, y, black);
+          } else {
+            LCD_SetBuffer(buffer, x, y, green);
+          }
+        }
       }
     }
-
-    if (hi2s1.Instance->SR & 0x100) {
-      __HAL_I2S_DISABLE(&hi2s1);
-      LED_Set(LED_RED, 1);
-
-      HAL_Delay(1);
-
-      __HAL_I2S_ENABLE(&hi2s1);      
-      LED_Set(LED_RED, 0);
     }
 
-    c.g = 0xfc;
-    color_t c2 = {255, 0, 0};
-    int16_t *audio = Audio_GetBuffer(0);
+    if (wave_enabled) {
+    int16_t *audio = Audio_GetBuffer(1);
     for (int x = 0; x < 320; x++) {
       int idx = 2*x;
-      int y1 = 96 + (audio[idx] / 512);
-      int y2 = 96 + (audio[idx+1] / 512);
-      LCD_SetBuffer(buffer, x, y1, c);
-      LCD_SetBuffer(buffer, x, y2, c2);
+      int y1 = 120 + (audio[idx] / 512);
+      int y2 = 120 + (audio[idx+1] / 512);
+      LCD_SetBuffer(buffer, x, y1, red);
+      LCD_SetBuffer(buffer, x, y2, blue);
+    }
     }
     
     LCD_Buffer_DMA2D();

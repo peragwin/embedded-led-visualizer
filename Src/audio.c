@@ -2,12 +2,21 @@
 
 #include "audio.h"
 #include "i2s.h"
+#include "gpio.h"
+#include "fastLog.h"
+#include "bucketer.h"
+#include "frequency_sensor.h"
 
 static int16_t audio_buffer[2 * AUDIO_BUFFER_SIZE] = {0};
 
+static void init_fft(uint16_t size);
+static void init_scaled_window(uint16_t size);
+static void init_bucketer(uint16_t size);
+static void init_frequency_sensor(uint16_t size, uint16_t columns);
+static void process(int16_t *audio);
+
 static void audioTransferComplete(DMA_HandleTypeDef *hdma);
 static void audioTransferError(DMA_HandleTypeDef *hdma);
-static void process(int16_t *audio);
 
 void Audio_Init(void) {
   I2S_HandleTypeDef *hi2s = &hi2s1;
@@ -16,7 +25,7 @@ void Audio_Init(void) {
 
   hdma_spi1_rx.XferCpltCallback = audioTransferComplete;
   hdma_spi1_rx.XferErrorCallback = audioTransferError;
-    
+
   if(hi2s->State == HAL_I2S_STATE_READY)
   {    
     if(((hi2s->Instance->I2SCFGR & (SPI_I2SCFGR_DATLEN | SPI_I2SCFGR_CHLEN)) == I2S_DATAFORMAT_24B)||\
@@ -30,6 +39,7 @@ void Audio_Init(void) {
       hi2s->RxXferSize = AUDIO_BUFFER_SIZE;
       hi2s->RxXferCount = AUDIO_BUFFER_SIZE;
     }
+
     /* Process Locked */
     __HAL_LOCK(hi2s);
     
@@ -58,6 +68,24 @@ void Audio_Init(void) {
   {
     Error_Handler();
   }
+
+  uint16_t frame_size = hi2s->RxXferSize / 2;
+  init_scaled_window(frame_size);
+  init_fft(frame_size);
+  init_bucketer(frame_size - 1); // ignore the DC component of the fft
+  init_frequency_sensor(NUM_BUCKETS, 64);
+}
+
+void Audio_ensure_i2s_frame_sync(void) {
+  if (hi2s1.Instance->SR & 0x100) {
+    __HAL_I2S_DISABLE(&hi2s1);
+    LED_Set(LED_RED, 1);
+
+    HAL_Delay(1);
+
+    __HAL_I2S_ENABLE(&hi2s1);      
+    LED_Set(LED_RED, 0);
+  }
 }
 
 int audio_buffer_toggle;
@@ -85,6 +113,90 @@ int16_t* Audio_GetBuffer(uint8_t which) {
   return which ? audio_buffer : (audio_buffer + AUDIO_BUFFER_SIZE);
 }
 
+float32_t scaled_window[AUDIO_BUFFER_SIZE / 2];
+
+static void init_scaled_window(uint16_t size) {
+  for (int i = 0; i < size; i++) {
+    // blackman-harris window
+    float32_t c1 = arm_cos_f32(2.0 * PI * (float32_t)i / (float32_t)(size - 1));
+    float32_t c2 = arm_cos_f32(4.0 * PI * (float32_t)i / (float32_t)(size - 1));
+    float32_t c3 = arm_cos_f32(6.0 * PI * (float32_t)i / (float32_t)(size - 1));
+    scaled_window[i] = 0.35875 - 0.48829 * c1 + 0.14128 * c2 - 0.01168 * c3;
+    scaled_window[i] /= 32768; // 2**15 to get a range of [-1, 1]
+  }
+}
+
+arm_rfft_fast_instance_f32 fft_struct;
+
+static void init_fft(uint16_t size) {
+  arm_rfft_fast_init_f32(&fft_struct, size);
+}
+
+Bucketer_TypeDef *bucketer;
+
+static void init_bucketer(uint16_t size) {
+  bucketer = NewBucketer(size, NUM_BUCKETS, 32, 16000);
+}
+
+FrequencySensor_TypeDef *frequency_sensor;
+
+static void init_frequency_sensor(uint16_t size, uint16_t columns) {
+  frequency_sensor = NewFrequencySensor(size, columns);
+}
+
+float32_t* Audio_GetProcessedOutput(void) {
+  return frequency_sensor->drivers->amp[0];
+}
+
+static void average_stereo(int16_t *dest, int16_t *src, int length) {
+  for (int i = 0; i < length/2; i++) {
+    dest[i] = src[2*i] + src[2*i+1];
+  }
+}
+
+static void convert_to_float(float32_t *dest, int16_t *src, int length) {
+  int i = length;
+  while (i--) {
+    dest[i] = (float32_t)src[i];
+  }
+}
+
+static void scale_and_apply_window(float32_t *frame, int length) {
+  arm_mult_f32(frame, scaled_window, frame, length);
+}
+
+static void power_spectrum(float32_t *dest, float32_t *src) {
+  uint16_t fft_size = fft_struct.fftLenRFFT;
+  arm_rfft_fast_f32(&fft_struct, src, dest, 0);
+  arm_abs_f32(dest, dest, fft_size);
+  for (int i = 0; i < fft_size; i++) {
+    dest[i] = log2_2521(1 + dest[i]);
+  }
+}
+
+volatile int processing = 0;
+
 static void process(int16_t *audio) {
-  return;
+  if (processing) {
+    LED_Set(LED_RED, 1);
+  } else {
+    LED_Set(LED_RED, 0);
+  }
+  processing = 1;
+  int frame_size = AUDIO_BUFFER_SIZE / 2;
+  // int fft_size = frame_size / 2;
+  int16_t mono[frame_size];
+  float32_t frame[frame_size];
+  float32_t fft_frame[frame_size];
+
+  average_stereo(mono, audio, AUDIO_BUFFER_SIZE);
+  convert_to_float(frame, mono, frame_size);
+  scale_and_apply_window(frame, frame_size);
+
+  power_spectrum(fft_frame, frame);
+
+  Bucket(bucketer, fft_frame+1); // ignore DC component
+
+  FS_Process(frequency_sensor, bucketer->output);
+  processing = 0;
 }
