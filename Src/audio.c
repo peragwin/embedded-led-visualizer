@@ -72,7 +72,7 @@ void Audio_Init(void) {
   init_scaled_window(frame_size);
   init_fft(frame_size);
   init_bucketer(frame_size - 1); // ignore the DC component of the fft
-  init_frequency_sensor(NUM_BUCKETS, 64);
+  init_frequency_sensor(NUM_BUCKETS, NUM_COLUMNS);
 }
 
 void Audio_ensure_i2s_frame_sync(void) {

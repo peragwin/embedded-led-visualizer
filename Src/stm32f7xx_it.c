@@ -39,6 +39,7 @@
 extern DMA_HandleTypeDef hdma_spi1_rx;
 extern DMA2D_HandleTypeDef   hdma2d;
 extern DMA2D_HandleTypeDef hdma2d_r2m;
+extern TIM_HandleTypeDef htim6;
 
 /******************************************************************************/
 /*            Cortex-M7 Processor Interruption and Exception Handlers         */ 
@@ -181,6 +182,14 @@ void SysTick_Handler(void)
   /* USER CODE BEGIN SysTick_IRQn 1 */
 
   /* USER CODE END SysTick_IRQn 1 */
+}
+
+/**
+* @brief This function handles TIM6 global interrupt, DAC1 and DAC2 underrun error interrupts.
+*/
+void TIM6_DAC_IRQHandler(void)
+{
+  HAL_TIM_IRQHandler(&htim6);
 }
 
 void DMA2D_IRQHandler(void)

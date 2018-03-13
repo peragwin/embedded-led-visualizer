@@ -57,6 +57,7 @@ FrequencySensor_TypeDef* NewFrequencySensor(uint16_t size, uint16_t columns) {
         .gain = 2,
         .differential_gain = 2e-3,
         .sync = 1e-2,
+        .mode = 1,
     };
     float32_t gainFilterParams[4] = {
         0.80, 0.20,
@@ -269,10 +270,12 @@ void apply_base(FrequencySensor_TypeDef *fs) {
 }
 
 void FS_Process(FrequencySensor_TypeDef *fs, float32_t *frame) {
+    fs->render_lock = 1;
     apply_premphasis(fs, frame);
     apply_gain_control(fs, frame);
     apply_filters(fs, frame);
     apply_effects(fs);
     apply_sync(fs);
     apply_base(fs);
+    fs->render_lock = 0;
 }

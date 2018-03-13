@@ -7,8 +7,9 @@
 #include "frequency_sensor.h"
 #include <arm_math.h>
 
-#define AUDIO_BUFFER_SIZE 512
-#define NUM_BUCKETS 30
+#define AUDIO_BUFFER_SIZE 1024
+#define NUM_BUCKETS 60
+#define NUM_COLUMNS 80
 
 extern FrequencySensor_TypeDef *frequency_sensor;
 

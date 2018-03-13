@@ -45,6 +45,7 @@
 /* USER CODE END 0 */
 
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim6;
 // TIM_HandleTypeDef htimx;
 // TIM_HandleTypeDef htimy;
 // DMA_HandleTypeDef hdma_timx;
@@ -98,6 +99,30 @@ void MX_TIM2_Init(void)
   }
 
   HAL_TIM_MspPostInit(&htim2);
+
+}
+
+// Tick at 80Hz to drive VSYNC
+void MX_TIM6_Init(void)
+{
+  TIM_MasterConfigTypeDef sMasterConfig;
+
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 1000;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 1350;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
 
 }
 
@@ -267,6 +292,12 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* tim_baseHandle)
   /* USER CODE BEGIN TIM2_MspInit 1 */
 
   /* USER CODE END TIM2_MspInit 1 */
+  }
+
+  if (tim_baseHandle->Instance==TIM6) {
+    __HAL_RCC_TIM6_CLK_ENABLE();
+    HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
   }
 
   // if(tim_baseHandle->Instance==TIMx)

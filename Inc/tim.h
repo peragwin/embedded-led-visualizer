@@ -52,6 +52,7 @@
 /* USER CODE END Includes */
 
 extern TIM_HandleTypeDef htim2;
+extern TIM_HandleTypeDef htim6;
 // extern TIM_HandleTypeDef htimx;
 // extern TIM_HandleTypeDef htimy;
 // DMA_HandleTypeDef hdma_timx;

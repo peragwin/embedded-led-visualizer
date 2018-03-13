@@ -67,12 +67,20 @@ void LCD_TestDemo(void);
 void LCD_ColorDemo(void);
 
 static void display_grid_init(void);
+static void render_display(void);
 
 static void TransferComplete(DMA2D_HandleTypeDef *hdma2d);
 static void TransferError(DMA2D_HandleTypeDef *hdma2d);
 
 color_t buffer[BUFFER_SIZE] = {};
 DisplayGrid_TypeDef *display_grid;
+
+int bucket_enabled = 0;
+int vsync_enabled = 1;
+int wave_enabled = 0;
+int display_grid_enabled = 1;
+
+volatile int vsync_ready = 0;
 
 int main(void)
 {
@@ -90,6 +98,7 @@ int main(void)
   MX_DMA_Init();
   MX_FMC_Init();
   MX_TIM2_Init();
+  MX_TIM6_Init();
   MX_I2S1_Init();
 
   MX_DMA2D_Init();
@@ -112,7 +121,12 @@ int main(void)
   LCD_PutStr(10,10,"Hello fucking 16-bit interface!",RGB565(255,192,127));
 	LCD_PutStr(30,30,"It's much faster and that's good!",RGB565(255,128,0));
 
-  HAL_Delay(2000);
+  HAL_Delay(500);
+
+  if (vsync_enabled) {
+  if (HAL_TIM_Base_Start_IT(&htim6) != HAL_OK)
+    Error_Handler();
+  }
 
   LCD_ColorDemo();
   //LCD_TestDemo();
@@ -139,10 +153,6 @@ void LCD_TestDemo(void) {
     HAL_Delay(20);
   }
 }
-
-int bucket_enabled = 0;
-int wave_enabled = 0;
-int display_grid_enabled = 1;
 
 void LCD_ColorDemo(void) {
   float r, g, b = 0;
@@ -209,23 +219,7 @@ void LCD_ColorDemo(void) {
     Audio_ensure_i2s_frame_sync();
 
     if (display_grid_enabled) {
-      Render(display_grid);
-      int cols = display_grid->fs->columns;
-      int rows = display_grid->fs->size;
-      int xincr = 320 / cols;
-      int yincr = 240 / rows;
-      for (int i = 0; i < cols; i++) {
-        for (int j = 0; j < rows; j++) {
-          color_t c = display_grid->display[i*rows + j];
-          LCD_FillRect_DMA2D(i*xincr, ((rows-1-j)*yincr), xincr, yincr, c);
-          //LCD_SetBuffer(buffer, i, rows-1-j, fixBits(c));
-          // for (int x = i*xincr; x < (i+1)*xincr; x++) {
-          //   for (int y = j*yincr; y < (j+1)*yincr; y++) {
-          //     LCD_SetBuffer(buffer, x, 239 - y, fixBits(c));
-          //   }
-          // }
-        }
-      }
+      render_display();
     }
 
     if (bucket_enabled) {
@@ -260,7 +254,30 @@ void LCD_ColorDemo(void) {
     }
     }
     
+    if (vsync_enabled)
+      while(!vsync_ready);
+      vsync_ready = 0;
     LCD_Buffer_DMA2D();
+  }
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+  if (htim->Instance == TIM6) {
+    vsync_ready = 1;
+  }
+}
+
+static void render_display(void) {
+  Render(display_grid);
+  int cols = display_grid->fs->columns;
+  int rows = display_grid->fs->size;
+  int xincr = 320 / cols;
+  int yincr = 240 / rows;
+  for (int i = 0; i < cols; i++) {
+    for (int j = 0; j < rows; j++) {
+      color_t c = display_grid->display[i*rows + j];
+      LCD_FillRect_DMA2D(i*xincr, ((rows-1-j)*yincr), xincr, yincr, c);
+    }
   }
 }
 

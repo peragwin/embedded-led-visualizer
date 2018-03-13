@@ -1,6 +1,7 @@
 #include "display_grid.h"
 #include <stdlib.h>
 #include <arm_math.h>
+#include "gpio.h"
 
 DisplayGrid_TypeDef* NewDisplayGrid(FrequencySensor_TypeDef *fs) {
     DisplayParams_TypeDef paramValues = {
@@ -22,7 +23,7 @@ DisplayGrid_TypeDef* NewDisplayGrid(FrequencySensor_TypeDef *fs) {
 
 static float32_t sigmoid(float32_t x) {
     //return 1.0 / (1 + exp(-x));
-    float32_t a = (a < 0) ? -a : a;
+    float32_t a = (x < 0) ? -x : x;
     return (1.0 + x / (1.0 + a)) / 2.0;
 }
 
@@ -49,11 +50,17 @@ static void render_column(DisplayGrid_TypeDef *g, uint16_t col, color_t *colors)
     float32_t phi = ws * (float32_t)col;
 
     for (int i = 0; i < g->fs->size; i++) {
-        colors[i] = get_hsv(g->params, amp[i], phase[i], phi);
+        colors[i] = fixBits(get_hsv(g->params, amp[i], phase[i], phi));
     }
 }
 
 void Render(DisplayGrid_TypeDef *g) {
+    if (g->fs->render_lock) {
+        LED_Set(LED_RED, 1);
+        return;
+    } else {
+        LED_Set(LED_RED, 0);
+    }
     int hl = g->fs->columns / 2;
     color_t c[g->fs->size];
     for (int i = 0; i < hl; i++) {

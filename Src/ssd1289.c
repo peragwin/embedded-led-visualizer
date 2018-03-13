@@ -95,9 +95,9 @@ void LCD_Init(void) {
     // DCT3 DCT2 DCT1 DCT0 BT2 BT1 BT0 0 DC3 DC2 DC1 DC0 AP2 AP1 AP0 0
     // 1     0    1    0    1   0   0  0  1   0   1   0   0   1   0  0
     // DCT[3:0] fosc/4 BT[2:0]  DC{3:0] fosc/4
-    LCD_WriteReg(0x0003, 0x0804);//0xA8A4
+    LCD_WriteReg(0x0003, 0xA8A4);//0xA8A4 // i had 0804??
     LCD_WriteReg(0x000C, 0x0000);//
-    LCD_WriteReg(0x000D, 0x0808);// 0x080C --> 0x0808
+    LCD_WriteReg(0x000D, 0x080C);// 0x080C --> 0x0808
     // power control 4
     // 0 0 VCOMG VDV4 VDV3 VDV2 VDV1 VDV0 0 0 0 0 0 0 0 0
     // 0 0   1    0    1    0    1    1   0 0 0 0 0 0 0 0
