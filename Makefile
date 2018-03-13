@@ -82,10 +82,12 @@ Src/dma2d.c \
 Src/i2s.c \
 Src/dma.c \
 Src/ssd1289.c \
+Src/color.c \
 Src/audio.c \
 Src/fastLog.c \
 Src/bucketer.c \
 Src/frequency_sensor.c \
+Src/display_grid.c \
 Src/main.c
 
 

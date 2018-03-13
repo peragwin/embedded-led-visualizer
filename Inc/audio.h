@@ -4,16 +4,19 @@
 #define audio_h
 
 #include "stm32f7xx_hal.h"
+#include "frequency_sensor.h"
 #include <arm_math.h>
 
 #define AUDIO_BUFFER_SIZE 512
-#define NUM_BUCKETS 32
+#define NUM_BUCKETS 30
+
+extern FrequencySensor_TypeDef *frequency_sensor;
 
 void Audio_Init(void);
 void Audio_ensure_i2s_frame_sync(void);
 
 int16_t* Audio_GetCurrentBuffer(void);
 int16_t* Audio_GetBuffer(uint8_t which);
-float32_t* Audio_GetProcessedOutput(void);
+Drivers_TypeDef* Audio_GetProcessedOutput(void);
 
 #endif

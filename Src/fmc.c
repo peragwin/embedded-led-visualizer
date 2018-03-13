@@ -69,9 +69,9 @@ void MX_FMC_Init(void)
   hsram1.Init.WaitSignal = FMC_WAIT_SIGNAL_DISABLE;
   hsram1.Init.ExtendedMode = FMC_EXTENDED_MODE_DISABLE;
   hsram1.Init.AsynchronousWait = FMC_ASYNCHRONOUS_WAIT_DISABLE;
-  hsram1.Init.WriteBurst = FMC_WRITE_BURST_DISABLE;
+  hsram1.Init.WriteBurst = FMC_WRITE_BURST_ENABLE;
   hsram1.Init.ContinuousClock = FMC_CONTINUOUS_CLOCK_SYNC_ONLY;
-  hsram1.Init.WriteFifo = FMC_WRITE_FIFO_DISABLE;
+  hsram1.Init.WriteFifo = FMC_WRITE_FIFO_ENABLE;
   hsram1.Init.PageSize = FMC_PAGE_SIZE_NONE;
   /* Read Timing */
   read_timing.AddressSetupTime = 0;
@@ -90,11 +90,30 @@ void MX_FMC_Init(void)
   //write_timing.DataLatency = 16;
   write_timing.AccessMode = FMC_ACCESS_MODE_A;
 
-  if (HAL_SRAM_Init(&hsram1, &write_timing, NULL) != HAL_OK)
+  if (HAL_SRAM_Init(&hsram1, &write_timing, &read_timing) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
 
+  // disable caching for LCD/FMC addresses
+  HAL_MPU_Disable();
+  
+  MPU_Region_InitTypeDef mpu_init;
+  mpu_init.Enable = MPU_REGION_ENABLE;
+  mpu_init.BaseAddress = FMC_LCD_CMD;
+  mpu_init.Size = MPU_REGION_SIZE_16MB;
+  mpu_init.AccessPermission = MPU_REGION_FULL_ACCESS;
+  mpu_init.IsBufferable = MPU_ACCESS_NOT_BUFFERABLE;
+  mpu_init.IsCacheable = MPU_ACCESS_NOT_CACHEABLE;
+  mpu_init.IsShareable = MPU_ACCESS_NOT_SHAREABLE;
+  mpu_init.Number = MPU_REGION_NUMBER1;
+  mpu_init.TypeExtField = MPU_TEX_LEVEL0;
+  mpu_init.SubRegionDisable = 0;
+  mpu_init.DisableExec = MPU_INSTRUCTION_ACCESS_DISABLE;
+
+  HAL_MPU_ConfigRegion(&mpu_init);
+
+  HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);
 }
 
 static uint32_t FMC_Initialized = 0;

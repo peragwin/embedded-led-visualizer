@@ -9,17 +9,12 @@
 
 //#define  ASCII_8X16_MS_Gothic
 #define  ASCII_8X16_System
+#include "color.h"
 #include <fonts.h>
 
 #define BUFFER_SIZE 76800 // 320x240 for 264k color mode
 
 typedef uint8_t buffer_t;
-
-typedef struct {
-	uint8_t r;
-	uint8_t g;
-	uint8_t b;
-} color_t;
 
 uint16_t RGB565(uint8_t R,uint8_t G,uint8_t B);
 void LCD_Reset(void);

@@ -53,10 +53,7 @@ GainController_TypeDef* NewGainController(uint16_t size, float32_t *params, floa
 
 FrequencySensor_TypeDef* NewFrequencySensor(uint16_t size, uint16_t columns) {
     Parameters_TypeDef params = {
-        .brightness = 127,
-        .saturation = 4,
         .offset = 0,
-        .period = 24,
         .gain = 2,
         .differential_gain = 2e-3,
         .sync = 1e-2,
@@ -71,8 +68,8 @@ FrequencySensor_TypeDef* NewFrequencySensor(uint16_t size, uint16_t columns) {
     };
     float32_t preemphasis = 16;
     float32_t gainControllerParams[2] = {0.05, 0.95};
-    float32_t kp = 1;
-    float32_t kd = 16;
+    float32_t kp = 0.005;
+    float32_t kd = 0.001;
     
     Parameters_TypeDef *paramValues = (Parameters_TypeDef*)malloc(sizeof(Parameters_TypeDef));
     memcpy(paramValues, &params, sizeof(Parameters_TypeDef));
@@ -90,6 +87,7 @@ FrequencySensor_TypeDef* NewFrequencySensor(uint16_t size, uint16_t columns) {
     fs->agc = agc;
     fs->drivers = drivers;
     fs->preemphasis = preemphasis;
+    fs->render_lock = 0;
     return fs;
 }
 
@@ -132,9 +130,16 @@ void mat_apply_filter(float32_t *params, float32_t *in, float32_t *out, uint16_t
         Error_Handler();
 }
 
-float32_t quadratic_error(float32_t x) {
+static float32_t quadratic_error(float32_t x) {
     float32_t sign = (x < 0) ? -1.0 : 1.0;
     return sign * x * x;
+}
+
+static float32_t log_error(float32_t x) {
+    x = 1.000001 - x;
+    float32_t sign = (x < 0) ? 1.0 : -1.0;
+    float32_t a = (x < 0) ? -x : x;
+    return sign * log2_2521(x);
 }
 
 void apply_gain_control(FrequencySensor_TypeDef *fs, float32_t *frame) {
@@ -147,7 +152,7 @@ void apply_gain_control(FrequencySensor_TypeDef *fs, float32_t *frame) {
     // calculate error
     float32_t e[fs->size];
     for (int i = 0; i < fs->size; i++) {
-        e[i] = quadratic_error(1 - fs->agc->frame[i]);
+        e[i] = log_error(1 - fs->agc->frame[i]);
     }
     
     // apply pd controller
@@ -160,7 +165,7 @@ void apply_gain_control(FrequencySensor_TypeDef *fs, float32_t *frame) {
         u = kp * e[i] + kd * (e[i] - err);
         gain += u;
         if (gain > 10000) gain = 10000;
-        if (gain < 0) gain = 0;
+        if (gain < .001) gain = .001;
         fs->agc->gain[i] = gain;
         fs->agc->err[i] = e[i];
     }
@@ -242,7 +247,7 @@ void apply_sync(FrequencySensor_TypeDef *fs) {
     float32_t sign;
     for (int i = 0; i < fs->size; i++) {
         diff = mean - energy[i];
-        sign = signbit(diff) ? -1.0 : 1.0;
+        sign = (diff < 0) ? -1.0 : 1.0;
         diff = sign * diff * diff;
         energy[i] += fs->params->sync * diff;
     }

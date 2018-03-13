@@ -18,7 +18,7 @@ uint16_t RGB565(uint8_t R,uint8_t G,uint8_t B) {
 
 void LCD_write_command(uint16_t cmd) {
 	LCD_CMD->REG = BYTE_SWAP(cmd);
-    delay(10);
+	delay(10);
 }
 
 void LCD_write_data(uint16_t data) {

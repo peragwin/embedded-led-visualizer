@@ -45,7 +45,9 @@
 #include "i2s.h"
 #include "dma.h"
 #include "ssd1289.h"
+#include "color.h"
 #include "audio.h"
+#include "display_grid.h"
 #include <arm_math.h>
 
 #define BUFFER_SIZE 76800
@@ -59,19 +61,23 @@ void SystemClock_Config(void);
 // static void DMA2D_TransferError(DMA2D_HandleTypeDef *hdma2d);
 
 void LCD_SetBuffer(color_t *buffer, uint16_t x, uint16_t y, color_t c);
+void LCD_FillRect_DMA2D(uint16_t x, uint16_t y, uint16_t w, uint16_t h, color_t c);
 void LCD_Buffer_DMA2D(void);
 void LCD_TestDemo(void);
 void LCD_ColorDemo(void);
+
+static void display_grid_init(void);
 
 static void TransferComplete(DMA2D_HandleTypeDef *hdma2d);
 static void TransferError(DMA2D_HandleTypeDef *hdma2d);
 
 color_t buffer[BUFFER_SIZE] = {};
+DisplayGrid_TypeDef *display_grid;
 
 int main(void)
 {
   /* MCU Configuration----------------------------------------------------------*/
-  //CPU_CACHE_Enable();
+  CPU_CACHE_Enable();
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
@@ -89,8 +95,11 @@ int main(void)
   MX_DMA2D_Init();
   hdma2d.XferCpltCallback = TransferComplete;
   hdma2d.XferErrorCallback = TransferError;
+  hdma2d_r2m.XferCpltCallback = TransferComplete;
+  hdma2d_r2m.XferErrorCallback = TransferError;
 
   Audio_Init();
+  display_grid_init();
 
   LCD_Init();
 
@@ -131,48 +140,9 @@ void LCD_TestDemo(void) {
   }
 }
 
-#define ABS(a) (a < 0 ? -a : a)
-
-color_t hsv(float h, float s, float v) {
-  h = fmod(h, 360);
-  h /= 60;
-  float c = s * v;
-  float x = c * (1-ABS(fmod(h, 2.0)-1));
-  float m = v - c;
-  float r, g, b;
-  if (h < 1.0) {
-    r = c; g = x;
-  } else if (h < 2.0) {
-    r = x; g = c;
-  } else if (h < 3.0) {
-    g = c; b = x;
-  } else if (h < 4.0) {
-    g = x; b = c;
-  } else if (h < 5.0) {
-    r = x; b = c;
-  } else {
-    r = c; b = x;
-  }
-  color_t color = {250*(m+r), 250*(m+g), 250*(m+b)};
-  return color;
-}
-
-color_t fixBits(color_t c) {
-  c.r &= 0xfc;
-  c.g &= 0xfc;
-  c.b &= 0xfc;
-  return c;
-}
-
-color_t sim565(color_t c) {
-  c.r &= 0xf8;
-  c.g &= 0xfc;
-  c.b &= 0xf8;
-  return c;
-}
-
-int bucket_enabled = 1;
+int bucket_enabled = 0;
 int wave_enabled = 0;
+int display_grid_enabled = 1;
 
 void LCD_ColorDemo(void) {
   float r, g, b = 0;
@@ -195,12 +165,16 @@ void LCD_ColorDemo(void) {
     }
   }
 
+  
+
   int j = 0;
   color_t green = {0, 0xfc, 0};
   color_t red = {0xff, 0, 0};
   color_t blue = {0,0, 0xff};
   color_t black = {0, 0, 0};
   float32_t scale = 1;
+
+  LCD_FillRect_DMA2D(0, 0, 320, 240, green);
   while (1) {
     j++;
 
@@ -234,8 +208,25 @@ void LCD_ColorDemo(void) {
 
     Audio_ensure_i2s_frame_sync();
 
-    // c.g = 0xfc;
-    // color_t c2 = {255, 0, 0};
+    if (display_grid_enabled) {
+      Render(display_grid);
+      int cols = display_grid->fs->columns;
+      int rows = display_grid->fs->size;
+      int xincr = 320 / cols;
+      int yincr = 240 / rows;
+      for (int i = 0; i < cols; i++) {
+        for (int j = 0; j < rows; j++) {
+          color_t c = display_grid->display[i*rows + j];
+          LCD_FillRect_DMA2D(i*xincr, ((rows-1-j)*yincr), xincr, yincr, c);
+          //LCD_SetBuffer(buffer, i, rows-1-j, fixBits(c));
+          // for (int x = i*xincr; x < (i+1)*xincr; x++) {
+          //   for (int y = j*yincr; y < (j+1)*yincr; y++) {
+          //     LCD_SetBuffer(buffer, x, 239 - y, fixBits(c));
+          //   }
+          // }
+        }
+      }
+    }
 
     if (bucket_enabled) {
     float32_t *buckets = Audio_GetProcessedOutput();
@@ -293,6 +284,15 @@ void LCD_Buffer_DMA2D(void) {
   DMA2D_WriteBuffer((uint32_t) buffer, (uint32_t) &(LCD_DATA->REG), BUFFER_SIZE);
 }
 
+void LCD_FillRect_DMA2D(uint16_t x, uint16_t y, uint16_t w, uint16_t h, color_t c) {
+  while(transfer_in_progress);
+  transfer_in_progress = 1;
+
+  uint16_t *loc = buffer + 320*y + x;
+  uint32_t src = (c.r << 16) | (c.g << 8) | (c.b);
+  DMA2D_FillRect(src, (uint32_t)loc, w, h); 
+}
+
 static void TransferComplete(DMA2D_HandleTypeDef *hdma2d) {
   static int toggle;
 
@@ -303,6 +303,11 @@ static void TransferComplete(DMA2D_HandleTypeDef *hdma2d) {
 
 static void TransferError(DMA2D_HandleTypeDef *hdma2d) {
   LED_Set(LED_RED, 1);
+  Error_Handler();
+}
+
+static void display_grid_init(void) {
+  display_grid = NewDisplayGrid(frequency_sensor);
 }
 
 static void CPU_CACHE_Enable(void)

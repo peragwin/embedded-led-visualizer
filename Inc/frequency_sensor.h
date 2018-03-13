@@ -12,10 +12,7 @@ typedef struct {
 } FilterValues_TypeDef;
 
 typedef struct {
-    uint16_t brightness;
-    float32_t saturation;
     float32_t offset;
-    uint16_t period;
     float32_t gain;
     float32_t differential_gain;
     float32_t sync;
@@ -49,6 +46,7 @@ typedef struct {
     GainController_TypeDef *agc;
     float32_t preemphasis;
     Drivers_TypeDef *drivers;
+    uint8_t render_lock;
 } FrequencySensor_TypeDef;
 
 FilterValues_TypeDef* NewFilterValues(uint16_t size, float32_t *gain_values, float32_t *diff_values);

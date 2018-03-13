@@ -5,7 +5,6 @@
 #include "gpio.h"
 #include "fastLog.h"
 #include "bucketer.h"
-#include "frequency_sensor.h"
 
 static int16_t audio_buffer[2 * AUDIO_BUFFER_SIZE] = {0};
 
@@ -144,13 +143,13 @@ static void init_frequency_sensor(uint16_t size, uint16_t columns) {
   frequency_sensor = NewFrequencySensor(size, columns);
 }
 
-float32_t* Audio_GetProcessedOutput(void) {
-  return frequency_sensor->drivers->amp[0];
+Drivers_TypeDef* Audio_GetProcessedOutput(void) {
+  return frequency_sensor->drivers;
 }
 
 static void average_stereo(int16_t *dest, int16_t *src, int length) {
   for (int i = 0; i < length/2; i++) {
-    dest[i] = src[2*i] + src[2*i+1];
+    dest[i] = (src[2*i] + src[2*i+1]) / 2;
   }
 }
 
@@ -183,6 +182,7 @@ static void process(int16_t *audio) {
     LED_Set(LED_RED, 0);
   }
   processing = 1;
+  LED_Set(LED_BLUE, 1);
   int frame_size = AUDIO_BUFFER_SIZE / 2;
   // int fft_size = frame_size / 2;
   int16_t mono[frame_size];
@@ -198,5 +198,6 @@ static void process(int16_t *audio) {
   Bucket(bucketer, fft_frame+1); // ignore DC component
 
   FS_Process(frequency_sensor, bucketer->output);
+  LED_Set(LED_BLUE, 0);
   processing = 0;
 }

@@ -38,6 +38,7 @@
 
 extern DMA_HandleTypeDef hdma_spi1_rx;
 extern DMA2D_HandleTypeDef   hdma2d;
+extern DMA2D_HandleTypeDef hdma2d_r2m;
 
 /******************************************************************************/
 /*            Cortex-M7 Processor Interruption and Exception Handlers         */ 
@@ -183,8 +184,13 @@ void SysTick_Handler(void)
 }
 
 void DMA2D_IRQHandler(void)
-{  
-  HAL_DMA2D_IRQHandler(&hdma2d);  
+{
+  uint32_t cr = DMA2D->CR;
+  if ((cr & DMA2D_CR_MODE_Msk) == DMA2D_R2M) {
+    HAL_DMA2D_IRQHandler(&hdma2d_r2m);
+  } else {
+    HAL_DMA2D_IRQHandler(&hdma2d);  
+  }
 }
 
 void DMA2_Stream0_IRQHandler(void) {
