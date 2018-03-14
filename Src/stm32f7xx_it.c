@@ -40,6 +40,7 @@ extern DMA_HandleTypeDef hdma_spi1_rx;
 extern DMA2D_HandleTypeDef   hdma2d;
 extern DMA2D_HandleTypeDef hdma2d_r2m;
 extern TIM_HandleTypeDef htim6;
+extern DMA_HandleTypeDef hdma_sai1_a;
 
 /******************************************************************************/
 /*            Cortex-M7 Processor Interruption and Exception Handlers         */ 
@@ -204,6 +205,11 @@ void DMA2D_IRQHandler(void)
 
 void DMA2_Stream0_IRQHandler(void) {
   HAL_DMA_IRQHandler(&hdma_spi1_rx);
+}
+
+void DMA2_Stream1_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(&hdma_sai1_a);
 }
 
 /******************************************************************************/

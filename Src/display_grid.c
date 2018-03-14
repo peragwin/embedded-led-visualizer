@@ -7,7 +7,7 @@ DisplayGrid_TypeDef* NewDisplayGrid(FrequencySensor_TypeDef *fs) {
     DisplayParams_TypeDef paramValues = {
         .brightness = 127,
         .saturation = 4,
-        .period = 24,
+        .period = 2*fs->columns,
     };
     DisplayParams_TypeDef *params = malloc(sizeof(DisplayParams_TypeDef));
     memcpy(params, &paramValues, sizeof(DisplayParams_TypeDef));
@@ -46,7 +46,7 @@ static void render_column(DisplayGrid_TypeDef *g, uint16_t col, color_t *colors)
         amp = g->fs->drivers->amp[col];
     }
     float32_t *phase = g->fs->drivers->energy;
-    float32_t ws = 2*PI / (float32_t)g->params->period / 16;
+    float32_t ws = 2*PI / (float32_t)g->params->period;
     float32_t phi = ws * (float32_t)col;
 
     for (int i = 0; i < g->fs->size; i++) {

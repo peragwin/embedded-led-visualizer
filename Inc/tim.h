@@ -104,7 +104,7 @@ extern TIM_HandleTypeDef htim6;
 extern void _Error_Handler(char *, int);
 
 void MX_TIM2_Init(void);
-// void MX_TIMx_Init(void);
+void MX_TIM6_Init(void);
 // void MX_TIMy_Init(void);
 
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef* htim);

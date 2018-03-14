@@ -43,6 +43,7 @@
 #include "tim.h"
 #include "dma2d.h"
 #include "i2s.h"
+#include "sai.h"
 #include "dma.h"
 #include "ssd1289.h"
 #include "color.h"
@@ -99,7 +100,8 @@ int main(void)
   MX_FMC_Init();
   MX_TIM2_Init();
   MX_TIM6_Init();
-  MX_I2S1_Init();
+  //MX_I2S1_Init();
+  MX_SAI1_Init();
 
   MX_DMA2D_Init();
   hdma2d.XferCpltCallback = TransferComplete;
@@ -184,7 +186,7 @@ void LCD_ColorDemo(void) {
   color_t black = {0, 0, 0};
   float32_t scale = 1;
 
-  LCD_FillRect_DMA2D(0, 0, 320, 240, green);
+  //LCD_FillRect_DMA2D(0, 0, 320, 240, green);
   while (1) {
     j++;
 
@@ -244,11 +246,15 @@ void LCD_ColorDemo(void) {
     }
 
     if (wave_enabled) {
-    int16_t *audio = Audio_GetBuffer(1);
+    int32_t *audio = Audio_GetBuffer(1);
     for (int x = 0; x < 320; x++) {
       int idx = 2*x;
-      int y1 = 120 + (audio[idx] / 512);
-      int y2 = 120 + (audio[idx+1] / 512);
+      int y1 = 120 + (audio[idx] / 512<<8);
+      if (y1 > 239) y1 = 239;
+      if (y1 < 0) y1 = 0;
+      int y2 = 120 + (audio[idx+1] / 512<<8);
+      if (y2 > 239) y2 = 239;
+      if (y2 < 0) y2 = 0;
       LCD_SetBuffer(buffer, x, y1, red);
       LCD_SetBuffer(buffer, x, y2, blue);
     }
@@ -345,6 +351,7 @@ void SystemClock_Config(void)
 
   RCC_OscInitTypeDef RCC_OscInitStruct;
   RCC_ClkInitTypeDef RCC_ClkInitStruct;
+  RCC_PeriphCLKInitTypeDef PeriphClkInitStruct;
 
     /**Configure the main internal regulator output voltage 
     */
@@ -389,6 +396,37 @@ void SystemClock_Config(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
+  // PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_SAI1|RCC_PERIPHCLK_I2S;
+  // PeriphClkInitStruct.PLLI2S.PLLI2SN = 192;
+  // PeriphClkInitStruct.PLLI2S.PLLI2SP = RCC_PLLP_DIV2;
+  // PeriphClkInitStruct.PLLI2S.PLLI2SR = 2;
+  // PeriphClkInitStruct.PLLI2S.PLLI2SQ = 2;
+  // PeriphClkInitStruct.PLLSAI.PLLSAIN = 96;
+  // PeriphClkInitStruct.PLLSAI.PLLSAIR = 2;
+  // PeriphClkInitStruct.PLLSAI.PLLSAIQ = 3;
+  // PeriphClkInitStruct.PLLSAI.PLLSAIP = RCC_PLLSAIP_DIV2;
+  // PeriphClkInitStruct.PLLI2SDivQ = 1;
+  // PeriphClkInitStruct.PLLSAIDivQ = 1;
+  // PeriphClkInitStruct.PLLSAIDivR = RCC_PLLSAIDIVR_2;
+  // PeriphClkInitStruct.I2sClockSelection = RCC_I2SCLKSOURCE_PLLI2S;
+  // PeriphClkInitStruct.Sai1ClockSelection = RCC_SAI1CLKSOURCE_PLLSAI;
+  // if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
+  // {
+  //   _Error_Handler(__FILE__, __LINE__);
+  // }
+  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_SAI1;
+  PeriphClkInitStruct.PLLSAI.PLLSAIN = 96;
+  PeriphClkInitStruct.PLLSAI.PLLSAIR = 2;
+  PeriphClkInitStruct.PLLSAI.PLLSAIQ = 4;
+  PeriphClkInitStruct.PLLSAI.PLLSAIP = RCC_PLLSAIP_DIV2;
+  PeriphClkInitStruct.PLLSAIDivQ = 1;
+  PeriphClkInitStruct.PLLSAIDivR = RCC_PLLSAIDIVR_2;
+  PeriphClkInitStruct.Sai1ClockSelection = RCC_SAI1CLKSOURCE_PLLSAI;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
     /**Configure the Systick interrupt time 
     */
   HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
@@ -398,7 +436,7 @@ void SystemClock_Config(void)
   HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
 
   /* SysTick_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(SysTick_IRQn, 1, 2);
+  HAL_NVIC_SetPriority(SysTick_IRQn, 8, 0);
 }
 
 

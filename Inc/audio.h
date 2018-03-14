@@ -16,8 +16,8 @@ extern FrequencySensor_TypeDef *frequency_sensor;
 void Audio_Init(void);
 void Audio_ensure_i2s_frame_sync(void);
 
-int16_t* Audio_GetCurrentBuffer(void);
-int16_t* Audio_GetBuffer(uint8_t which);
+int32_t* Audio_GetCurrentBuffer(void);
+int32_t* Audio_GetBuffer(uint8_t which);
 Drivers_TypeDef* Audio_GetProcessedOutput(void);
 
 #endif

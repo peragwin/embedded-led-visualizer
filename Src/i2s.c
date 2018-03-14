@@ -49,9 +49,9 @@ void MX_I2S1_Init(void)
 {
 
   hi2s1.Instance = SPI1;
-  hi2s1.Init.Mode = I2S_MODE_SLAVE_RX;
-  hi2s1.Init.Standard = I2S_STANDARD_PHILLIPS;
-  hi2s1.Init.DataFormat = I2S_DATAFORMAT_16B;
+  hi2s1.Init.Mode = I2S_MODE_MASTER_RX;
+  hi2s1.Init.Standard = I2S_STANDARD_PHILIPS;
+  hi2s1.Init.DataFormat = I2S_DATAFORMAT_32B;
   hi2s1.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
   hi2s1.Init.AudioFreq = I2S_AUDIOFREQ_48K;
   hi2s1.Init.CPOL = I2S_CPOL_LOW;
@@ -82,6 +82,13 @@ void HAL_I2S_MspInit(I2S_HandleTypeDef* i2sHandle)
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.Alternate = GPIO_AF5_SPI1;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    // GPIO_InitStruct.Pin = GPIO_PIN_4;
+    // GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    // GPIO_InitStruct.Pull = GPIO_NOPULL;
+    // GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    // GPIO_InitStruct.Alternate = GPIO_AF5_SPI1;
+    // HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
     hdma_spi1_rx.Instance = DMA2_Stream0;
     hdma_spi1_rx.Init.Channel = DMA_CHANNEL_3;

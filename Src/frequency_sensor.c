@@ -55,7 +55,7 @@ FrequencySensor_TypeDef* NewFrequencySensor(uint16_t size, uint16_t columns) {
     Parameters_TypeDef params = {
         .offset = 0,
         .gain = 2,
-        .differential_gain = 2e-3,
+        .differential_gain = 1e-3,
         .sync = 1e-2,
         .mode = 1,
     };
@@ -67,10 +67,10 @@ FrequencySensor_TypeDef* NewFrequencySensor(uint16_t size, uint16_t columns) {
         0.263, .737,
         -0.0028, 0.2272,
     };
-    float32_t preemphasis = 16;
+    float32_t preemphasis = 8;
     float32_t gainControllerParams[2] = {0.05, 0.95};
-    float32_t kp = 0.005;
-    float32_t kd = 0.001;
+    float32_t kp = 0.001;
+    float32_t kd = 0.005;
     
     Parameters_TypeDef *paramValues = (Parameters_TypeDef*)malloc(sizeof(Parameters_TypeDef));
     memcpy(paramValues, &params, sizeof(Parameters_TypeDef));
@@ -140,7 +140,7 @@ static float32_t log_error(float32_t x) {
     x = 1.000001 - x;
     float32_t sign = (x < 0) ? 1.0 : -1.0;
     float32_t a = (x < 0) ? -x : x;
-    return sign * log2_2521(x);
+    return sign * log2_2521(a);
 }
 
 void apply_gain_control(FrequencySensor_TypeDef *fs, float32_t *frame) {
@@ -165,8 +165,8 @@ void apply_gain_control(FrequencySensor_TypeDef *fs, float32_t *frame) {
         float32_t err = fs->agc->err[i];
         u = kp * e[i] + kd * (e[i] - err);
         gain += u;
-        if (gain > 10000) gain = 10000;
-        if (gain < .001) gain = .001;
+        if (gain > 1e8) gain = 1e8;
+        if (gain < 1e-8) gain = 1e-8;
         fs->agc->gain[i] = gain;
         fs->agc->err[i] = e[i];
     }
@@ -244,9 +244,22 @@ void apply_sync(FrequencySensor_TypeDef *fs) {
         }
         mean = fmod(mean, 2*PI);
     }
+
     float32_t diff;
     float32_t sign;
     for (int i = 0; i < fs->size; i++) {
+        if (i != 0) {
+            diff = energy[i-1] - energy[i];
+            sign = (diff < 0) ? -1.0 : 1.0;
+            diff = sign * diff * diff;
+            energy[i] += 10 * fs->params->sync * diff;
+        }
+        if (i != fs->size-1) {
+            diff = energy[i+1] - energy[i];
+            sign = (diff < 0) ? -1.0 : 1.0;
+            diff = sign * diff * diff;
+            energy[i] += 10 * fs->params->sync * diff;
+        }
         diff = mean - energy[i];
         sign = (diff < 0) ? -1.0 : 1.0;
         diff = sign * diff * diff;

@@ -61,6 +61,7 @@ Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_dma2d.c \
 Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_gpio.c \
 Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_i2c.c \
 Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_i2s.c \
+Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_sai.c \
 Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_ll_fmc.c \
 Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_pwr.c \
 Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal.c \
@@ -80,6 +81,7 @@ Src/tim.c \
 Src/gpio.c \
 Src/dma2d.c \
 Src/i2s.c \
+Src/sai.c \
 Src/dma.c \
 Src/ssd1289.c \
 Src/color.c \
